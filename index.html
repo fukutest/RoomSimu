@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>部屋レイアウト検討ツール</title>
+<style>
+  body {
+    font-family: sans-serif;
+    margin: 0;
+    padding: 10px;
+  }
+
+  .container {
+    display: flex;
+    gap: 16px;
+  }
+
+  .left {
+    flex: 1;
+  }
+
+  .right {
+    width: 280px;
+    border-left: 1px solid #ccc;
+    padding-left: 12px;
+  }
+
+  canvas {
+    border: 1px solid #333;
+    display: block;
+  }
+
+  .controls label {
+    display: block;
+    margin: 6px 0;
+  }
+
+  .controls input[type="text"],
+  .controls input[type="number"],
+  .controls input[type="color"] {
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  button {
+    width: 100%;
+    margin-bottom: 10px;
+  }
+</style>
+</head>
+<body>
+
+<h2>部屋レイアウト検討ツール（cm入力）</h2>
+
+<button id="saveBtn">ファイル保存</button>
+<button id="loadBtn">ファイル読み込み</button>
+<input id="fileInput" type="file" accept=".json" style="display:none">
+
+<div class="container">
+
+  <div class="left">
+    <canvas id="canvas" width="1600" height="800"></canvas>
+  </div>
+
+  <div class="right">
+    <button id="insertBtn">挿入</button>
+
+    <div class="controls">
+      <label>名前
+        <input id="nameInput" type="text">
+      </label>
+
+      <label>X（cm）
+        <input id="xInput" type="number">
+      </label>
+
+      <label>Y（cm）
+        <input id="yInput" type="number">
+      </label>
+
+      <label>横（cm）
+        <input id="widthInput" type="number">
+      </label>
+
+      <label>縦（cm）
+        <input id="heightInput" type="number">
+      </label>
+
+      <label>色
+        <input id="colorInput" type="color">
+      </label>
+
+      <label>透明度
+        <input id="alphaInput" type="range" min="0" max="1" step="0.05">
+      </label>
+
+      <label>
+        <input id="showSizeInput" type="checkbox">
+        サイズ表示
+      </label>
+
+      <label>
+        <input id="ellipseInput" type="checkbox">
+        楕円として表示
+      </label>
+
+      <label>
+        <input id="showBorderInput" type="checkbox">
+        非選択時 枠線表示
+      </label>
+
+      <label>非選択時 枠線色
+        <input id="borderColorInput" type="color">
+      </label>
+
+    </div>
+  </div>
+
+</div>
+
+<script>
+const canvas = document.getElementById("canvas");
+const ctx = canvas.getContext("2d");
+
+const SCALE = 2;
+
+// 入力欄
+const nameInput = document.getElementById("nameInput");
+const xInput = document.getElementById("xInput");
+const yInput = document.getElementById("yInput");
+const widthInput = document.getElementById("widthInput");
+const heightInput = document.getElementById("heightInput");
+const colorInput = document.getElementById("colorInput");
+const alphaInput = document.getElementById("alphaInput");
+const showSizeInput = document.getElementById("showSizeInput");
+const showBorderInput = document.getElementById("showBorderInput");
+const borderColorInput = document.getElementById("borderColorInput");
+const ellipseInput = document.getElementById("ellipseInput");
+
+let rectangles = [];
+let selected = null;
+let dragging = false;
+let offsetX = 0;
+let offsetY = 0;
+
+// 描画
+function draw() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  rectangles.forEach(r => {
+    ctx.globalAlpha = r.alpha;
+    ctx.fillStyle = r.color;
+
+    if (r.isEllipse) {
+      ctx.beginPath();
+      ctx.ellipse(
+        r.x + r.w / 2,
+        r.y + r.h / 2,
+        r.w / 2,
+        r.h / 2,
+        0, 0, Math.PI * 2
+      );
+      ctx.fill();
+    } else {
+      ctx.fillRect(r.x, r.y, r.w, r.h);
+    }
+    ctx.globalAlpha = 1;
+
+    // サイズ表示
+    if (r.showSize) {
+      ctx.fillStyle = "#000";
+      ctx.font = "12px sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText(
+        `${Math.round(r.w / SCALE)} × ${Math.round(r.h / SCALE)} cm`,
+        r.x + r.w / 2,
+        r.y + r.h + 12
+      );
+    }
+
+    // 枠線
+    if (r === selected) {
+      ctx.strokeStyle = "red";
+      ctx.lineWidth = 2;
+    } else if (r.showBorder) {
+      ctx.strokeStyle = r.borderColor;
+      ctx.lineWidth = 1;
+    } else {
+      return;
+    }
+
+    if (r.isEllipse) {
+      ctx.beginPath();
+      ctx.ellipse(
+        r.x + r.w / 2,
+        r.y + r.h / 2,
+        r.w / 2,
+        r.h / 2,
+        0, 0, Math.PI * 2
+      );
+      ctx.stroke();
+    } else {
+      ctx.strokeRect(r.x, r.y, r.w, r.h);
+    }
+
+    // 名前
+    ctx.fillStyle = "#000";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(r.name, r.x + r.w / 2, r.y + r.h / 2);
+  });
+}
+
+// 追加
+document.getElementById("insertBtn").onclick = () => {
+  const r = {
+    x: 50,
+    y: 50,
+    w: 100 * SCALE,
+    h: 60 * SCALE,
+    name: "家具",
+    color: "#00aaff",
+    alpha: 0.6,
+    showSize: false,
+    showBorder: true,
+    borderColor: "#000000",
+    isEllipse: false
+  };
+  rectangles.push(r);
+  selected = r;
+  syncUI();
+  draw();
+};
+
+// UI同期
+function syncUI() {
+  if (!selected) return;
+  nameInput.value = selected.name;
+  xInput.value = Math.round(selected.x / SCALE);
+  yInput.value = Math.round(selected.y / SCALE);
+  widthInput.value = Math.round(selected.w / SCALE);
+  heightInput.value = Math.round(selected.h / SCALE);
+  colorInput.value = selected.color;
+  alphaInput.value = selected.alpha;
+  showSizeInput.checked = selected.showSize;
+  showBorderInput.checked = selected.showBorder;
+  borderColorInput.value = selected.borderColor;
+  ellipseInput.checked = selected.isEllipse;
+}
+
+// 入力反映
+[
+  nameInput, xInput, yInput, widthInput, heightInput,
+  colorInput, alphaInput, showSizeInput, showBorderInput,
+  borderColorInput, ellipseInput
+].forEach(el => {
+  el.oninput = () => {
+    if (!selected) return;
+    selected.name = nameInput.value;
+    selected.x = Number(xInput.value) * SCALE;
+    selected.y = Number(yInput.value) * SCALE;
+    selected.w = Number(widthInput.value) * SCALE;
+    selected.h = Number(heightInput.value) * SCALE;
+    selected.color = colorInput.value;
+    selected.alpha = Number(alphaInput.value);
+    selected.showSize = showSizeInput.checked;
+    selected.showBorder = showBorderInput.checked;
+    selected.borderColor = borderColorInput.value;
+    selected.isEllipse = ellipseInput.checked;
+    draw();
+  };
+});
+
+// 選択・ドラッグ
+canvas.onmousedown = e => {
+  const r = canvas.getBoundingClientRect();
+  const x = e.clientX - r.left;
+  const y = e.clientY - r.top;
+
+  selected = null;
+  for (let i = rectangles.length - 1; i >= 0; i--) {
+    const o = rectangles[i];
+    if (x >= o.x && x <= o.x + o.w && y >= o.y && y <= o.y + o.h) {
+      selected = o;
+      offsetX = x - o.x;
+      offsetY = y - o.y;
+      dragging = true;
+      break;
+    }
+  }
+  syncUI();
+  draw();
+};
+
+canvas.onmousemove = e => {
+  if (!dragging || !selected) return;
+  const r = canvas.getBoundingClientRect();
+  selected.x = e.clientX - r.left - offsetX;
+  selected.y = e.clientY - r.top - offsetY;
+  syncUI();
+  draw();
+};
+
+canvas.onmouseup = () => dragging = false;
+canvas.onmouseleave = () => dragging = false;
+
+// 保存
+document.getElementById("saveBtn").onclick = () => {
+  const blob = new Blob([JSON.stringify(rectangles, null, 2)], {type:"application/json"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "layout.json";
+  a.click();
+};
+
+// 読み込み
+document.getElementById("loadBtn").onclick = () => {
+  document.getElementById("fileInput").click();
+};
+
+document.getElementById("fileInput").onchange = e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    rectangles = JSON.parse(reader.result);
+    selected = null;
+    draw();
+  };
+  reader.readAsText(file);
+};
+
+draw();
+</script>
+
+</body>
+</html>
