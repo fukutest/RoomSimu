@@ -64,6 +64,10 @@
 
   <div class="right">
     <button id="insertBtn">挿入</button>
+    <button id="duplicateBtn">複製</button>
+    <button id="deleteBtn">削除</button>
+    <button id="frontBtn">最前面に表示</button>
+    <button id="backBtn">最背面に表示</button>
 
     <div class="controls">
       <label>名前
@@ -112,7 +116,6 @@
       <label>非選択時 枠線色
         <input id="borderColorInput" type="color">
       </label>
-
     </div>
   </div>
 
@@ -121,7 +124,6 @@
 <script>
 const canvas = document.getElementById("canvas");
 const ctx = canvas.getContext("2d");
-
 const SCALE = 2;
 
 // 入力欄
@@ -153,20 +155,31 @@ function draw() {
 
     if (r.isEllipse) {
       ctx.beginPath();
-      ctx.ellipse(
-        r.x + r.w / 2,
-        r.y + r.h / 2,
-        r.w / 2,
-        r.h / 2,
-        0, 0, Math.PI * 2
-      );
+      ctx.ellipse(r.x + r.w/2, r.y + r.h/2, r.w/2, r.h/2, 0, 0, Math.PI*2);
       ctx.fill();
     } else {
       ctx.fillRect(r.x, r.y, r.w, r.h);
     }
     ctx.globalAlpha = 1;
 
-    // サイズ表示
+    if (r === selected || r.showBorder) {
+      ctx.strokeStyle = (r === selected) ? "red" : r.borderColor;
+      ctx.lineWidth = (r === selected) ? 2 : 1;
+      if (r.isEllipse) {
+        ctx.beginPath();
+        ctx.ellipse(r.x + r.w/2, r.y + r.h/2, r.w/2, r.h/2, 0, 0, Math.PI*2);
+        ctx.stroke();
+      } else {
+        ctx.strokeRect(r.x, r.y, r.w, r.h);
+      }
+    }
+
+    ctx.fillStyle = "#000";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(r.name, r.x + r.w/2, r.y + r.h/2);
+
+        // サイズ表示
     if (r.showSize) {
       ctx.fillStyle = "#000";
       ctx.font = "12px sans-serif";
@@ -178,44 +191,13 @@ function draw() {
       );
     }
 
-    // 枠線
-    if (r === selected) {
-      ctx.strokeStyle = "red";
-      ctx.lineWidth = 2;
-    } else if (r.showBorder) {
-      ctx.strokeStyle = r.borderColor;
-      ctx.lineWidth = 1;
-    } else {
-      return;
-    }
-
-    if (r.isEllipse) {
-      ctx.beginPath();
-      ctx.ellipse(
-        r.x + r.w / 2,
-        r.y + r.h / 2,
-        r.w / 2,
-        r.h / 2,
-        0, 0, Math.PI * 2
-      );
-      ctx.stroke();
-    } else {
-      ctx.strokeRect(r.x, r.y, r.w, r.h);
-    }
-
-    // 名前
-    ctx.fillStyle = "#000";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText(r.name, r.x + r.w / 2, r.y + r.h / 2);
   });
 }
 
 // 追加
 document.getElementById("insertBtn").onclick = () => {
   const r = {
-    x: 50,
-    y: 50,
+    x: 50, y: 50,
     w: 100 * SCALE,
     h: 60 * SCALE,
     name: "家具",
@@ -232,14 +214,50 @@ document.getElementById("insertBtn").onclick = () => {
   draw();
 };
 
+// 複製
+document.getElementById("duplicateBtn").onclick = () => {
+  if (!selected) return;
+  const copy = {...selected};
+  copy.x += 20;
+  copy.y += 20;
+  rectangles.push(copy);
+  selected = copy;
+  syncUI();
+  draw();
+};
+
+// 削除
+document.getElementById("deleteBtn").onclick = () => {
+  if (!selected) return;
+  rectangles = rectangles.filter(r => r !== selected);
+  selected = null;
+  draw();
+};
+
+// 最前面
+document.getElementById("frontBtn").onclick = () => {
+  if (!selected) return;
+  rectangles = rectangles.filter(r => r !== selected);
+  rectangles.push(selected);
+  draw();
+};
+
+// 最背面
+document.getElementById("backBtn").onclick = () => {
+  if (!selected) return;
+  rectangles = rectangles.filter(r => r !== selected);
+  rectangles.unshift(selected);
+  draw();
+};
+
 // UI同期
 function syncUI() {
   if (!selected) return;
   nameInput.value = selected.name;
-  xInput.value = Math.round(selected.x / SCALE);
-  yInput.value = Math.round(selected.y / SCALE);
-  widthInput.value = Math.round(selected.w / SCALE);
-  heightInput.value = Math.round(selected.h / SCALE);
+  xInput.value = selected.x / SCALE;
+  yInput.value = selected.y / SCALE;
+  widthInput.value = selected.w / SCALE;
+  heightInput.value = selected.h / SCALE;
   colorInput.value = selected.color;
   alphaInput.value = selected.alpha;
   showSizeInput.checked = selected.showSize;
@@ -251,18 +269,18 @@ function syncUI() {
 // 入力反映
 [
   nameInput, xInput, yInput, widthInput, heightInput,
-  colorInput, alphaInput, showSizeInput, showBorderInput,
-  borderColorInput, ellipseInput
+  colorInput, alphaInput, showSizeInput,
+  showBorderInput, borderColorInput, ellipseInput
 ].forEach(el => {
   el.oninput = () => {
     if (!selected) return;
     selected.name = nameInput.value;
-    selected.x = Number(xInput.value) * SCALE;
-    selected.y = Number(yInput.value) * SCALE;
-    selected.w = Number(widthInput.value) * SCALE;
-    selected.h = Number(heightInput.value) * SCALE;
+    selected.x = xInput.value * SCALE;
+    selected.y = yInput.value * SCALE;
+    selected.w = widthInput.value * SCALE;
+    selected.h = heightInput.value * SCALE;
     selected.color = colorInput.value;
-    selected.alpha = Number(alphaInput.value);
+    selected.alpha = alphaInput.value;
     selected.showSize = showSizeInput.checked;
     selected.showBorder = showBorderInput.checked;
     selected.borderColor = borderColorInput.value;
@@ -271,7 +289,7 @@ function syncUI() {
   };
 });
 
-// 選択・ドラッグ
+// ドラッグ
 canvas.onmousedown = e => {
   const r = canvas.getBoundingClientRect();
   const x = e.clientX - r.left;
@@ -304,7 +322,7 @@ canvas.onmousemove = e => {
 canvas.onmouseup = () => dragging = false;
 canvas.onmouseleave = () => dragging = false;
 
-// 保存
+// 保存・読込（既存）
 document.getElementById("saveBtn").onclick = () => {
   const blob = new Blob([JSON.stringify(rectangles, null, 2)], {type:"application/json"});
   const a = document.createElement("a");
@@ -313,7 +331,6 @@ document.getElementById("saveBtn").onclick = () => {
   a.click();
 };
 
-// 読み込み
 document.getElementById("loadBtn").onclick = () => {
   document.getElementById("fileInput").click();
 };
