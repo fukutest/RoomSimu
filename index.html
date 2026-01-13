@@ -90,6 +90,10 @@
         <input id="heightInput" type="number">
       </label>
 
+      <label>回転角度（deg）
+        <input id="rotationInput" type="number" step="1">
+      </label>
+
       <label>色
         <input id="colorInput" type="color">
       </label>
@@ -132,6 +136,7 @@ const xInput = document.getElementById("xInput");
 const yInput = document.getElementById("yInput");
 const widthInput = document.getElementById("widthInput");
 const heightInput = document.getElementById("heightInput");
+const rotationInput = document.getElementById("rotationInput");
 const colorInput = document.getElementById("colorInput");
 const alphaInput = document.getElementById("alphaInput");
 const showSizeInput = document.getElementById("showSizeInput");
@@ -150,36 +155,53 @@ function draw() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
   rectangles.forEach(r => {
+
+    const cx = r.x + r.w / 2;
+    const cy = r.y + r.h / 2;
+    const rad = r.rotation * Math.PI / 180;
+
+    ctx.save();
+
+    ctx.translate(cx, cy);
+    ctx.rotate(rad);
+    ctx.translate(-r.w / 2, -r.h / 2);
+
+    // ===== 本体 =====
     ctx.globalAlpha = r.alpha;
     ctx.fillStyle = r.color;
 
     if (r.isEllipse) {
       ctx.beginPath();
-      ctx.ellipse(r.x + r.w/2, r.y + r.h/2, r.w/2, r.h/2, 0, 0, Math.PI*2);
+      ctx.ellipse(r.w/2, r.h/2, r.w/2, r.h/2, 0, 0, Math.PI * 2);
       ctx.fill();
     } else {
-      ctx.fillRect(r.x, r.y, r.w, r.h);
+      ctx.fillRect(0, 0, r.w, r.h);
     }
     ctx.globalAlpha = 1;
 
+    // ===== 枠線 =====
     if (r === selected || r.showBorder) {
       ctx.strokeStyle = (r === selected) ? "red" : r.borderColor;
       ctx.lineWidth = (r === selected) ? 2 : 1;
+
       if (r.isEllipse) {
         ctx.beginPath();
-        ctx.ellipse(r.x + r.w/2, r.y + r.h/2, r.w/2, r.h/2, 0, 0, Math.PI*2);
+        ctx.ellipse(r.w/2, r.h/2, r.w/2, r.h/2, 0, 0, Math.PI * 2);
         ctx.stroke();
       } else {
-        ctx.strokeRect(r.x, r.y, r.w, r.h);
+        ctx.strokeRect(0, 0, r.w, r.h);
       }
     }
 
+    // ===== 名前 =====
     ctx.fillStyle = "#000";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.fillText(r.name, r.x + r.w/2, r.y + r.h/2);
+    ctx.fillText(r.name, r.w / 2, r.h / 2);
 
-        // サイズ表示
+    ctx.restore();
+
+    // サイズ表示（回転させない）
     if (r.showSize) {
       ctx.fillStyle = "#000";
       ctx.font = "12px sans-serif";
@@ -192,6 +214,8 @@ function draw() {
     }
 
   });
+
+
 }
 
 // 追加
@@ -200,6 +224,7 @@ document.getElementById("insertBtn").onclick = () => {
     x: 50, y: 50,
     w: 100 * SCALE,
     h: 60 * SCALE,
+    rotation: 0,
     name: "家具",
     color: "#00aaff",
     alpha: 0.6,
@@ -258,6 +283,7 @@ function syncUI() {
   yInput.value = selected.y / SCALE;
   widthInput.value = selected.w / SCALE;
   heightInput.value = selected.h / SCALE;
+  rotationInput.value = selected.rotation;
   colorInput.value = selected.color;
   alphaInput.value = selected.alpha;
   showSizeInput.checked = selected.showSize;
@@ -268,7 +294,7 @@ function syncUI() {
 
 // 入力反映
 [
-  nameInput, xInput, yInput, widthInput, heightInput,
+  nameInput, xInput, yInput, widthInput, heightInput, rotationInput, 
   colorInput, alphaInput, showSizeInput,
   showBorderInput, borderColorInput, ellipseInput
 ].forEach(el => {
@@ -279,6 +305,7 @@ function syncUI() {
     selected.y = yInput.value * SCALE;
     selected.w = widthInput.value * SCALE;
     selected.h = heightInput.value * SCALE;
+    selected.rotation = Number(rotationInput.value) || 0;
     selected.color = colorInput.value;
     selected.alpha = alphaInput.value;
     selected.showSize = showSizeInput.checked;
